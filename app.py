@@ -71,11 +71,12 @@ if uploaded_file:
             else:
                 st.warning("No Post Image Provided")
 
-        # User input for approval
+        # User input for approval with new default option
         status = st.radio(
             label=f"Status for Project ID {project_id}",
-            options=["Not Reviewed", "Correct", "Incorrect"],
-            key=f"status_{project_id}"
+            options=["Status Yet to be Updated", "Not Reviewed", "Correct", "Incorrect"],
+            key=f"status_{project_id}",
+            index=0  # Default selection is "Status Yet to be Updated"
         )
 
         reason = ""
@@ -115,7 +116,7 @@ if uploaded_file:
         df_filtered = df[existing_cols].copy()
 
         df_filtered["Quality"] = df_filtered["Project Id"].apply(
-            lambda pid: row_feedback.get(pid, {}).get("Quality", "Not Reviewed")
+            lambda pid: row_feedback.get(pid, {}).get("Quality", "Status Yet to be Updated")
         )
         df_filtered["Comments"] = df_filtered["Project Id"].apply(
             lambda pid: row_feedback.get(pid, {}).get("comment", "")
