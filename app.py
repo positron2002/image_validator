@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import io
-from openpyxl import Workbook
 from openpyxl.styles import PatternFill
+
+st.set_page_config(layout="wide")  # Makes the layout wider
 
 st.title("Image Approval App")
 
@@ -15,7 +16,8 @@ if "page" not in st.session_state:
     st.session_state.page = 0  # Start on page 0
 
 # Feedback dictionary to store user responses
-row_feedback = {}
+if "row_feedback" not in st.session_state:
+    st.session_state.row_feedback = {}
 
 # Disapproval reasons
 disapproval_reasons = [
@@ -45,8 +47,28 @@ if uploaded_file:
     end_idx = start_idx + ROWS_PER_PAGE
     df_page = df.iloc[start_idx:end_idx]
 
+    # **New Summary Box**
+    status_counts = {
+        "Status Yet to be Updated": 0,
+        "Not Reviewed": 0,
+        "Correct": 0,
+        "Incorrect": 0
+    }
+
+    for pid in df["Project Id"]:
+        current_status = st.session_state.row_feedback.get(pid, {}).get("Quality", "Status Yet to be Updated")
+        status_counts[current_status] += 1
+
+    # Display summary stats in the upper right corner
+    with st.sidebar:
+        st.subheader("Review Summary 📊")
+        st.write(f" **Correct:** {status_counts['Correct']}")
+        st.write(f"**Incorrect:** {status_counts['Incorrect']}")
+        st.write(f" **Not Reviewed:** {status_counts['Not Reviewed']}")
+        st.write(f" **Status Yet to be Updated:** {status_counts['Status Yet to be Updated']}")
+
     # Loop through rows for review
-    for i, row in df_page.iterrows():
+    for _, row in df_page.iterrows():
         project_id = row["Project Id"]
         pre_image = row["Raised Evidence"]
         post_image = row["Latest Evidence"]
@@ -87,7 +109,8 @@ if uploaded_file:
                 key=f"reason_{project_id}"
             )
 
-        row_feedback[project_id] = {
+        # Store feedback in session state
+        st.session_state.row_feedback[project_id] = {
             "Quality": status,
             "comment": reason if status == "Incorrect" else ""
         }
@@ -107,25 +130,17 @@ if uploaded_file:
 
     # Download updated file
     if st.button("Download Updated File"):
-        desired_cols = [
-            "Project Id", "Action Item", "Landmark*", "Organisation", "Zone", "Ward",
-            "City", "State*", "Raised On", "Raised Comment", "Raised Evidence",
-            "Raised Location", "Latest Comment", "Latest Evidence", "Latest Location"
-        ]
-        existing_cols = [col for col in desired_cols if col in df.columns]
-        df_filtered = df[existing_cols].copy()
-
-        df_filtered["Quality"] = df_filtered["Project Id"].apply(
-            lambda pid: row_feedback.get(pid, {}).get("Quality", "Status Yet to be Updated")
+        df["Quality"] = df["Project Id"].apply(
+            lambda pid: st.session_state.row_feedback.get(pid, {}).get("Quality", "Status Yet to be Updated")
         )
-        df_filtered["Comments"] = df_filtered["Project Id"].apply(
-            lambda pid: row_feedback.get(pid, {}).get("comment", "")
+        df["Comments"] = df["Project Id"].apply(
+            lambda pid: st.session_state.row_feedback.get(pid, {}).get("comment", "")
         )
 
         # Create an Excel file with conditional formatting
         with io.BytesIO() as excel_buffer:
             with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-                df_filtered.to_excel(writer, index=False, sheet_name="Approval Data")
+                df.to_excel(writer, index=False, sheet_name="Approval Data")
                 workbook = writer.book
                 sheet = workbook["Approval Data"]
 
@@ -134,8 +149,8 @@ if uploaded_file:
                 red_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
 
                 # Apply the color to the 'Quality' column only
-                quality_col_idx = df_filtered.columns.get_loc("Quality") + 1  # openpyxl uses 1-based index
-                for row_num, row in df_filtered.iterrows():
+                quality_col_idx = df.columns.get_loc("Quality") + 1  # openpyxl uses 1-based index
+                for row_num, row in df.iterrows():
                     status = row["Quality"]
                     cell = sheet.cell(row=row_num + 2, column=quality_col_idx)  # +2 to account for header
 
