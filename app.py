@@ -5,7 +5,7 @@ from openpyxl.styles import PatternFill
 
 st.set_page_config(layout="wide")  # Makes the layout wider
 
-st.title("Image Approval App")
+st.title("A-PAG QC LOG")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload your CSV or Excel file", type=["csv", "xlsx"])
