@@ -3,6 +3,7 @@ import pandas as pd
 import io
 import json
 from openpyxl.styles import PatternFill
+import os
 
 st.set_page_config(layout="wide")  # Makes the layout wider
 
@@ -11,21 +12,22 @@ st.title("A-PAG QC LOG")
 # File uploader
 uploaded_file = st.file_uploader("Upload your CSV or Excel file", type=["csv", "xlsx"])
 
+# Feedback file location
+FEEDBACK_FILE = "feedback_data.json"
+
+# Ensure the feedback file exists
+if not os.path.exists(FEEDBACK_FILE):
+    with open(FEEDBACK_FILE, "w") as f:
+        json.dump({}, f)
+
+# Load previous feedback data
+with open(FEEDBACK_FILE, "r") as f:
+    stored_feedback = json.load(f)
+
 # Pagination setup
 ROWS_PER_PAGE = 10
 if "page" not in st.session_state:
     st.session_state.page = 0  # Start on page 0
-
-# Feedback dictionary to store user responses
-FEEDBACK_FILE = "feedback_data.json"
-
-# Load previous feedback data if available
-if "row_feedback" not in st.session_state:
-    try:
-        with open(FEEDBACK_FILE, "r") as f:
-            st.session_state.row_feedback = json.load(f)
-    except FileNotFoundError:
-        st.session_state.row_feedback = {}  # Initialize if file doesn't exist
 
 # Disapproval reasons
 disapproval_reasons = [
@@ -87,7 +89,7 @@ if uploaded_file:
         }
 
         for pid in df["Project Id"]:
-            current_status = st.session_state.row_feedback.get(str(pid), {}).get("Quality", "Status Yet to be Updated")
+            current_status = stored_feedback.get(str(pid), {}).get("Quality", "Status Yet to be Updated")
             status_counts[current_status] += 1
 
         # Display summary stats in the sidebar
@@ -97,6 +99,13 @@ if uploaded_file:
             st.write(f"**Incorrect:** {status_counts['Incorrect']}")
             st.write(f" **Not Reviewed:** {status_counts['Not Reviewed']}")
             st.write(f" **Status Yet to be Updated:** {status_counts['Status Yet to be Updated']}")
+           
+            # Live Percentage calculation
+            total_correct = status_counts['Correct']
+            total_incorrect = status_counts['Incorrect']
+            if total_correct + total_incorrect > 0:
+                live_percentage = (total_correct * 100) / (total_correct + total_incorrect)
+                st.write(f" **Live Percentage:** {live_percentage:.2f}%")
 
         # Loop through rows for review
         for _, row in df_page.iterrows():
@@ -125,7 +134,7 @@ if uploaded_file:
                     st.warning("No Post Image Provided")
 
             # **Pre-fill User Selection**
-            saved_status = st.session_state.row_feedback.get(project_id, {}).get("Quality", "Status Yet to be Updated")
+            saved_status = stored_feedback.get(project_id, {}).get("Quality", "Status Yet to be Updated")
 
             status = st.radio(
                 label=f"Status for Project ID {project_id}",
@@ -134,7 +143,7 @@ if uploaded_file:
                 index=["Status Yet to be Updated", "Not Reviewed", "Correct", "Incorrect"].index(saved_status)  # Restore selection
             )
 
-            saved_reason = st.session_state.row_feedback.get(project_id, {}).get("comment", "")
+            saved_reason = stored_feedback.get(project_id, {}).get("comment", "")
 
             reason = ""
             if status == "Incorrect":
@@ -146,7 +155,7 @@ if uploaded_file:
                 )
 
             # Store feedback in session state
-            st.session_state.row_feedback[project_id] = {
+            stored_feedback[project_id] = {
                 "Quality": status,
                 "comment": reason if status == "Incorrect" else ""
             }
@@ -167,15 +176,15 @@ if uploaded_file:
         # Save feedback to file before downloading
         def save_feedback():
             with open(FEEDBACK_FILE, "w") as f:
-                json.dump(st.session_state.row_feedback, f)
+                json.dump(stored_feedback, f)
 
         # Download updated file
         if st.button("Download Updated File"):
             df["Quality"] = df["Project Id"].astype(str).apply(
-                lambda pid: st.session_state.row_feedback.get(pid, {}).get("Quality", "Status Yet to be Updated")
+                lambda pid: stored_feedback.get(pid, {}).get("Quality", "Status Yet to be Updated")
             )
             df["Comments"] = df["Project Id"].astype(str).apply(
-                lambda pid: st.session_state.row_feedback.get(pid, {}).get("comment", "")
+                lambda pid: stored_feedback.get(pid, {}).get("comment", "")
             )
 
             # Save feedback data
@@ -210,5 +219,4 @@ if uploaded_file:
                     file_name="updated_approval_data.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-
 
