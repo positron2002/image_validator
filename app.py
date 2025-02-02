@@ -1,12 +1,14 @@
 import streamlit as st
 import pandas as pd
-import io
 import json
+from openpyxl import Workbook
 from openpyxl.styles import PatternFill
 import os
+import io
 
+
+# Streamlit page configuration
 st.set_page_config(layout="wide")  # Makes the layout wider
-
 st.title("A-PAG QC LOG")
 
 # File uploader
@@ -20,9 +22,10 @@ if not os.path.exists(FEEDBACK_FILE):
     with open(FEEDBACK_FILE, "w") as f:
         json.dump({}, f)
 
-# Load previous feedback data
-with open(FEEDBACK_FILE, "r") as f:
-    stored_feedback = json.load(f)
+# Load previous feedback data into session state
+if "feedback" not in st.session_state:
+    with open(FEEDBACK_FILE, "r") as f:
+        st.session_state.feedback = json.load(f)
 
 # Pagination setup
 ROWS_PER_PAGE = 10
@@ -37,6 +40,7 @@ disapproval_reasons = [
     "Incomplete Work/Work Not Started"
 ]
 
+# If a file is uploaded
 if uploaded_file:
     # Read the uploaded file
     try:
@@ -81,7 +85,7 @@ if uploaded_file:
     }
 
     for pid in filtered_df["Project Id"]:
-        current_status = stored_feedback.get(str(pid), {}).get("Quality", "Status Yet to be Updated")
+        current_status = st.session_state.feedback.get(str(pid), {}).get("Quality", "Status Yet to be Updated")
         status_counts[current_status] += 1
 
     # Display summary stats in the sidebar (Dynamically updated)
@@ -130,7 +134,7 @@ if uploaded_file:
                     st.warning("No Post Image Provided")
 
             # **Pre-fill User Selection**
-            saved_status = stored_feedback.get(project_id, {}).get("Quality", "Status Yet to be Updated")
+            saved_status = st.session_state.feedback.get(project_id, {}).get("Quality", "Status Yet to be Updated")
 
             status = st.radio(
                 label=f"Status for Project ID {project_id}",
@@ -139,7 +143,7 @@ if uploaded_file:
                 index=["Status Yet to be Updated", "Not Reviewed", "Correct", "Incorrect"].index(saved_status)
             )
 
-            saved_reason = stored_feedback.get(project_id, {}).get("comment", "")
+            saved_reason = st.session_state.feedback.get(project_id, {}).get("comment", "")
 
             reason = ""
             if status == "Incorrect":
@@ -151,7 +155,7 @@ if uploaded_file:
                 )
 
             # Store feedback in session state
-            stored_feedback[project_id] = {
+            st.session_state.feedback[project_id] = {
                 "Quality": status,
                 "comment": reason if status == "Incorrect" else ""
             }
@@ -172,11 +176,41 @@ if uploaded_file:
         # Save feedback to the feedback file
         def save_feedback():
             with open(FEEDBACK_FILE, "w") as f:
-                json.dump(stored_feedback, f)
+                json.dump(st.session_state.feedback, f)
 
         # Save feedback
         if st.button("Save My Responses"):
             save_feedback()
             st.success("Responses Saved!")
+
+        # Download Excel file with color formatting
+        def create_excel_download(df):
+            wb = Workbook()
+            ws = wb.active
+            headers = df.columns.tolist()
+            ws.append(headers)
+
+            for idx, row in df.iterrows():
+                ws.append(row.tolist())
+
+                project_id = str(row["Project Id"])
+                status = st.session_state.feedback.get(project_id, {}).get("Quality", "Status Yet to be Updated")
+
+                fill_color = PatternFill(start_color="00FF00", end_color="00FF00", fill_type="solid") if status == "Correct" else PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+
+                for col in range(1, len(headers) + 1):
+                    cell = ws.cell(row=idx + 2, column=col)
+                    if status in ["Correct", "Incorrect"]:
+                        cell.fill = fill_color
+
+            # Save Excel to buffer
+            buffer = io.BytesIO()
+            wb.save(buffer)
+            buffer.seek(0)
+            return buffer
+
+        if st.button("Download Excel"):
+            excel_buffer = create_excel_download(filtered_df)
+            st.download_button("Download the Excel file", excel_buffer, "qc_log.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
