@@ -37,9 +37,6 @@ disapproval_reasons = [
     "Incomplete Work/Work Not Started"
 ]
 
-# Filters
-action_items = []
-
 if uploaded_file:
     # Read the uploaded file
     try:
@@ -49,64 +46,63 @@ if uploaded_file:
         st.stop()
 
     # Ensure required columns exist
-    required_cols = {"Project Id", "Raised Evidence", "Latest Evidence", "Zone", "Ward"}
+    required_cols = {"Project Id", "Raised Evidence", "Latest Evidence", "Zone", "Ward", "Action Item"}
     if not required_cols.issubset(df.columns):
         st.error(f"Your file is missing required columns: {required_cols - set(df.columns)}")
         st.stop()
 
-    # Collect unique action items for filtering
-    action_items = df["Action Item"].unique()
-
     # Filters for Action Item, Zone, and Ward
-    selected_action_item = st.selectbox("Filter by Action Item", ["All"] + list(action_items))
-    selected_zone = st.selectbox("Filter by Zone", ["All"] + df["Zone"].unique().tolist())
-    selected_ward = st.selectbox("Filter by Ward", ["All"] + df["Ward"].unique().tolist())
+    selected_action_item = st.selectbox("Filter by Action Item", ["All"] + df["Action Item"].dropna().unique().tolist())
+    selected_zone = st.selectbox("Filter by Zone", ["All"] + df["Zone"].dropna().unique().tolist())
+    selected_ward = st.selectbox("Filter by Ward", ["All"] + df["Ward"].dropna().unique().tolist())
 
-    # Apply filters
+    # Apply filters **before pagination**
+    filtered_df = df.copy()
+
     if selected_action_item != "All":
-        df = df[df["Action Item"] == selected_action_item]
+        filtered_df = filtered_df[filtered_df["Action Item"] == selected_action_item]
     if selected_zone != "All":
-        df = df[df["Zone"] == selected_zone]
+        filtered_df = filtered_df[filtered_df["Zone"] == selected_zone]
     if selected_ward != "All":
-        df = df[df["Ward"] == selected_ward]
+        filtered_df = filtered_df[filtered_df["Ward"] == selected_ward]
 
-    # Pagination logic
-    total_pages = len(df) // ROWS_PER_PAGE + (len(df) % ROWS_PER_PAGE > 0)
+    # Pagination logic AFTER filtering
+    total_pages = len(filtered_df) // ROWS_PER_PAGE + (len(filtered_df) % ROWS_PER_PAGE > 0)
     start_idx = st.session_state.page * ROWS_PER_PAGE
     end_idx = start_idx + ROWS_PER_PAGE
-    df_page = df.iloc[start_idx:end_idx]
+    df_page = filtered_df.iloc[start_idx:end_idx]
+
+    # Live Review Summary
+    status_counts = {
+        "Status Yet to be Updated": 0,
+        "Not Reviewed": 0,
+        "Correct": 0,
+        "Incorrect": 0
+    }
+
+    for pid in filtered_df["Project Id"]:
+        current_status = stored_feedback.get(str(pid), {}).get("Quality", "Status Yet to be Updated")
+        status_counts[current_status] += 1
+
+    # Display summary stats in the sidebar (Dynamically updated)
+    with st.sidebar:
+        st.subheader("Review Summary 📊")
+        st.write(f" **Correct:** {status_counts['Correct']}")
+        st.write(f"**Incorrect:** {status_counts['Incorrect']}")
+        st.write(f" **Not Reviewed:** {status_counts['Not Reviewed']}")
+        st.write(f" **Status Yet to be Updated:** {status_counts['Status Yet to be Updated']}")
+
+        # Live Percentage calculation
+        total_correct = status_counts['Correct']
+        total_incorrect = status_counts['Incorrect']
+        if total_correct + total_incorrect > 0:
+            live_percentage = (total_correct * 100) / (total_correct + total_incorrect)
+            st.write(f" **Live Percentage:** {live_percentage:.2f}%")
 
     # Check if the page is empty
     if df_page.empty:
-        st.error(f"Page {st.session_state.page} is empty. Total rows: {len(df)}")
+        st.error(f"Page {st.session_state.page} is empty. Total filtered rows: {len(filtered_df)}")
     else:
-        # **Recalculate the Review Summary Every Time**
-        status_counts = {
-            "Status Yet to be Updated": 0,
-            "Not Reviewed": 0,
-            "Correct": 0,
-            "Incorrect": 0
-        }
-
-        for pid in df["Project Id"]:
-            current_status = stored_feedback.get(str(pid), {}).get("Quality", "Status Yet to be Updated")
-            status_counts[current_status] += 1
-
-        # Display summary stats in the sidebar (Dynamically updated)
-        with st.sidebar:
-            st.subheader("Review Summary 📊")
-            st.write(f" **Correct:** {status_counts['Correct']}")
-            st.write(f"**Incorrect:** {status_counts['Incorrect']}")
-            st.write(f" **Not Reviewed:** {status_counts['Not Reviewed']}")
-            st.write(f" **Status Yet to be Updated:** {status_counts['Status Yet to be Updated']}")
-
-            # Live Percentage calculation
-            total_correct = status_counts['Correct']
-            total_incorrect = status_counts['Incorrect']
-            if total_correct + total_incorrect > 0:
-                live_percentage = (total_correct * 100) / (total_correct + total_incorrect)
-                st.write(f" **Live Percentage:** {live_percentage:.2f}%")
-
         # Loop through rows for review
         for _, row in df_page.iterrows():
             project_id = str(row["Project Id"])  # Convert to string for consistency
@@ -140,7 +136,7 @@ if uploaded_file:
                 label=f"Status for Project ID {project_id}",
                 options=["Status Yet to be Updated", "Not Reviewed", "Correct", "Incorrect"],
                 key=f"status_{project_id}",
-                index=["Status Yet to be Updated", "Not Reviewed", "Correct", "Incorrect"].index(saved_status)  # Restore selection
+                index=["Status Yet to be Updated", "Not Reviewed", "Correct", "Incorrect"].index(saved_status)
             )
 
             saved_reason = stored_feedback.get(project_id, {}).get("comment", "")
@@ -151,7 +147,7 @@ if uploaded_file:
                     label=f"Reason for Disapproval (ID {project_id})",
                     options=disapproval_reasons,
                     key=f"reason_{project_id}",
-                    index=disapproval_reasons.index(saved_reason) if saved_reason in disapproval_reasons else 0  # Restore selection
+                    index=disapproval_reasons.index(saved_reason) if saved_reason in disapproval_reasons else 0
                 )
 
             # Store feedback in session state
@@ -173,50 +169,14 @@ if uploaded_file:
                     st.session_state.page += 1
                     st.rerun()
 
-        # Save feedback to the feedback file (this ensures data persists)
+        # Save feedback to the feedback file
         def save_feedback():
             with open(FEEDBACK_FILE, "w") as f:
                 json.dump(stored_feedback, f)
 
-        # Save feedback after clicking "Save My Responses" button
-        if st.button("Save My Responses"):  # Button label changed here
-            df["Quality"] = df["Project Id"].astype(str).apply(
-                lambda pid: stored_feedback.get(pid, {}).get("Quality", "Status Yet to be Updated")
-            )
-            df["Comments"] = df["Project Id"].astype(str).apply(
-                lambda pid: stored_feedback.get(pid, {}).get("comment", "")
-            )
-
-            # Save feedback data after changes
+        # Save feedback
+        if st.button("Save My Responses"):
             save_feedback()
-
-            # Create an Excel file with conditional formatting
-            with io.BytesIO() as excel_buffer:
-                with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-                    df.to_excel(writer, index=False, sheet_name="Approval Data")
-                    workbook = writer.book
-                    sheet = workbook["Approval Data"]
-
-                    # Apply color formatting
-                    green_fill = PatternFill(start_color="00FF00", end_color="00FF00", fill_type="solid")
-                    red_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
-
-                    quality_col_idx = df.columns.get_loc("Quality") + 1  # openpyxl uses 1-based index
-                    for row_num, row in df.iterrows():
-                        status = row["Quality"]
-                        cell = sheet.cell(row=row_num + 2, column=quality_col_idx)  # +2 for header row
-                        if status == "Correct":
-                            cell.fill = green_fill
-                        elif status == "Incorrect":
-                            cell.fill = red_fill
-
-                # Save the Excel file to memory
-                excel_buffer.seek(0)
-                st.download_button(
-                    label="Save My Responses",  # Button label changed here
-                    data=excel_buffer,
-                    file_name="updated_approval_data.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+            st.success("Responses Saved!")
 
 
