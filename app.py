@@ -80,7 +80,7 @@ if uploaded_file:
     if df_page.empty:
         st.error(f"Page {st.session_state.page} is empty. Total rows: {len(df)}")
     else:
-        # **New Summary Box**
+        # **Recalculate the Review Summary Every Time**
         status_counts = {
             "Status Yet to be Updated": 0,
             "Not Reviewed": 0,
@@ -92,14 +92,14 @@ if uploaded_file:
             current_status = stored_feedback.get(str(pid), {}).get("Quality", "Status Yet to be Updated")
             status_counts[current_status] += 1
 
-        # Display summary stats in the sidebar
+        # Display summary stats in the sidebar (Dynamically updated)
         with st.sidebar:
             st.subheader("Review Summary 📊")
             st.write(f" **Correct:** {status_counts['Correct']}")
             st.write(f"**Incorrect:** {status_counts['Incorrect']}")
             st.write(f" **Not Reviewed:** {status_counts['Not Reviewed']}")
             st.write(f" **Status Yet to be Updated:** {status_counts['Status Yet to be Updated']}")
-           
+
             # Live Percentage calculation
             total_correct = status_counts['Correct']
             total_incorrect = status_counts['Incorrect']
@@ -173,13 +173,13 @@ if uploaded_file:
                     st.session_state.page += 1
                     st.rerun()
 
-        # Save feedback to file before downloading
+        # Save feedback to the feedback file (this ensures data persists)
         def save_feedback():
             with open(FEEDBACK_FILE, "w") as f:
                 json.dump(stored_feedback, f)
 
-        # Download updated file
-        if st.button("Download Updated File"):
+        # Save feedback after clicking "Save My Responses" button
+        if st.button("Save My Responses"):  # Button label changed here
             df["Quality"] = df["Project Id"].astype(str).apply(
                 lambda pid: stored_feedback.get(pid, {}).get("Quality", "Status Yet to be Updated")
             )
@@ -187,7 +187,7 @@ if uploaded_file:
                 lambda pid: stored_feedback.get(pid, {}).get("comment", "")
             )
 
-            # Save feedback data
+            # Save feedback data after changes
             save_feedback()
 
             # Create an Excel file with conditional formatting
@@ -197,11 +197,10 @@ if uploaded_file:
                     workbook = writer.book
                     sheet = workbook["Approval Data"]
 
-                    # Define cell formats
+                    # Apply color formatting
                     green_fill = PatternFill(start_color="00FF00", end_color="00FF00", fill_type="solid")
                     red_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
 
-                    # Apply color formatting to 'Quality' column
                     quality_col_idx = df.columns.get_loc("Quality") + 1  # openpyxl uses 1-based index
                     for row_num, row in df.iterrows():
                         status = row["Quality"]
@@ -214,9 +213,10 @@ if uploaded_file:
                 # Save the Excel file to memory
                 excel_buffer.seek(0)
                 st.download_button(
-                    label="Download Updated Excel",
+                    label="Save My Responses",  # Button label changed here
                     data=excel_buffer,
                     file_name="updated_approval_data.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+
 
