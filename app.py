@@ -98,10 +98,22 @@ if uploaded_file:
         # Live Percentage calculation
         total_correct = status_counts['Correct']
         total_incorrect = status_counts['Incorrect']
+        total_not_reviewed = status_counts['Not Reviewed']
         if total_correct + total_incorrect > 0:
             live_percentage = (total_correct * 100) / (total_correct + total_incorrect)
             st.write(f" **Live Percentage:** {live_percentage:.2f}%")
 
+        # Status % Calculation
+        total_reviewed = total_correct + total_incorrect
+        total_possible = total_reviewed+total_not_reviewed
+        
+        if total_possible>0:
+            status_percentage = (total_reviewed * 100) / total_possible
+            st.write(f"**Status %** :{status_percentage:.2f}%")
+        else:
+            st.write(" **Status %:**0.00%")
+        
+        
     # Check if the page is empty
     if df_page.empty:
         st.error(f"Page {st.session_state.page} is empty. Total filtered rows: {len(filtered_df)}")
@@ -159,16 +171,34 @@ if uploaded_file:
             }
 
         # Pagination controls
-        if st.session_state.page > 0:
-            if st.button("Previous Page"):
-                st.session_state.page -= 1
-                st.rerun()
+        total_pages = len(filtered_df) // ROWS_PER_PAGE + (len(filtered_df) % ROWS_PER_PAGE > 0)
 
-        if st.session_state.page < total_pages - 1:
-            if st.button("Next Page"):
-                st.session_state.page += 1
-                st.rerun()
+        st.markdown(f"**Page {st.session_state.page + 1} of {total_pages}**")  # Show current page
 
+        col1, col2, col3 = st.columns([1, 2, 1])
+
+        with col1:
+            if st.session_state.page > 0:
+                if st.button("⬅️ Previous Page"):
+                    st.session_state.page -= 1
+                    st.rerun()
+
+        with col2:
+            page_selection = st.selectbox(
+            "Jump to Page", 
+            [i + 1 for i in range(total_pages)], 
+            index=st.session_state.page
+    )
+        if page_selection - 1 != st.session_state.page:
+            st.session_state.page = page_selection - 1
+            st.rerun()
+
+        with col3:
+            if st.session_state.page < total_pages - 1:
+                if st.button("Next Page ➡️"):
+                    st.session_state.page += 1
+                    st.rerun()
+        
         # Save feedback
         if st.button("Save My Responses"):
             with open(FEEDBACK_FILE, "w") as f:
@@ -180,13 +210,15 @@ if uploaded_file:
             wb = Workbook()
             ws = wb.active
             headers = df.columns.tolist()
-            ws.append(headers + ["Review Status"])
+            ws.append(headers + ["Review Status","Comments"])
 
             for idx, row in df.iterrows():
                 project_id = str(row["Project Id"])
+                feedback_data = st.session_state.feedback.get(project_id, {})
                 status = st.session_state.feedback.get(project_id, {}).get("Quality", "Status Yet to be Updated")
+                comment = feedback_data.get("comment", "")
 
-                row_data = row.tolist() + [status]
+                row_data = row.tolist() + [status,comment]
                 ws.append(row_data)
 
                 fill_color = {
