@@ -36,7 +36,8 @@ disapproval_reasons = [
     "Wrong Before Image/Poor Identification",
     "After Photo-Missing",
     "After Photo-Wrong/Blurry",
-    "Incomplete Work/Work Not Started"
+    "Incomplete Work/Work Not Started",
+    "Image taken from wrong angle"
 ]
 
 if uploaded_file:
@@ -99,20 +100,23 @@ if uploaded_file:
         total_correct = status_counts['Correct']
         total_incorrect = status_counts['Incorrect']
         total_not_reviewed = status_counts['Not Reviewed']
+        total_status_not_updated = status_counts['Status Yet to be Updated']
         if total_correct + total_incorrect > 0:
             live_percentage = (total_correct * 100) / (total_correct + total_incorrect)
             st.write(f" **Live Percentage:** {live_percentage:.2f}%")
 
         # Status % Calculation
         total_reviewed = total_correct + total_incorrect
-        total_possible = total_reviewed+total_not_reviewed
+        total_possible = total_reviewed+total_not_reviewed+total_status_not_updated
         
         if total_possible>0:
             status_percentage = (total_reviewed * 100) / total_possible
-            st.write(f"**Status %** :{status_percentage:.2f}%")
+            st.write(f"**Live Sample Size** :{status_percentage:.2f}%")
         else:
-            st.write(" **Status %:**0.00%")
+            st.write("**Live Sample Size** :0.00%")
         
+        #Number of QC done
+        st.write(f"**Number of QC Done:** {total_correct + total_incorrect}")
         
     # Check if the page is empty
     if df_page.empty:
