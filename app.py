@@ -103,7 +103,7 @@ if uploaded_file:
         total_status_not_updated = status_counts['Status Yet to be Updated']
         if total_correct + total_incorrect > 0:
             live_percentage = (total_correct * 100) / (total_correct + total_incorrect)
-            st.write(f" **Live Percentage:** {live_percentage:.2f}%")
+            st.write(f" **Current QC Status %:** {live_percentage:.2f}%")
 
         # Status % Calculation
         total_reviewed = total_correct + total_incorrect
@@ -111,9 +111,9 @@ if uploaded_file:
         
         if total_possible>0:
             status_percentage = (total_reviewed * 100) / total_possible
-            st.write(f"**Live Sample Size** :{status_percentage:.2f}%")
+            st.write(f"**Current Sample Size %** :{status_percentage:.2f}%")
         else:
-            st.write("**Live Sample Size** :0.00%")
+            st.write("**Current Sample Size %** :0.00%")
         
         #Number of QC done
         st.write(f"**Number of QC Done:** {total_correct + total_incorrect}")
@@ -129,22 +129,30 @@ if uploaded_file:
             post_image = row["Latest Evidence"]
             zone = row["Zone"]
             ward = row["Ward"]
+            latest_comment = row.get("Latest Comment", "No comment available")
 
             st.subheader(f"Project ID: {project_id} | Action Item: {row.get('Action Item', 'N/A')}")
             st.text(f"Zone: {zone} | Ward: {ward}")
             st.text(f"Raised Comment: {row.get('Raised Comment', 'N/A')}")
-
+            st.text(f"Latest Comment: {latest_comment}")
+            
             # Display images
             col1, col2 = st.columns(2)
             with col1:
                 if pd.notna(pre_image):
-                    st.image(pre_image, caption="Raised Evidence (Pre)", use_container_width=True)
+                   st.markdown(
+    f'<img src="{pre_image}" style="max-width: 500px; max-height: 500px;">',
+    unsafe_allow_html=True
+)
                 else:
                     st.warning("No Pre Image Provided")
 
             with col2:
                 if pd.notna(post_image):
-                    st.image(post_image, caption="Latest Evidence (Post)", use_container_width=True)
+                    st.markdown(
+    f'<img src="{post_image}" style="max-width: 500px; max-height: 500px;">',
+    unsafe_allow_html=True
+)
                 else:
                     st.warning("No Post Image Provided")
 
