@@ -187,7 +187,7 @@ if uploaded_file:
 
         st.markdown(f"**Page {st.session_state.page + 1} of {total_pages}**")  # Show current page
 
-        col1, col2, col3 = st.columns([1, 2, 1])
+        col1, col2, col3 = st.columns([1, 6, 1])
 
         with col1:
             if st.session_state.page > 0:
@@ -196,14 +196,13 @@ if uploaded_file:
                     st.rerun()
 
         with col2:
-            page_selection = st.selectbox(
-            "Jump to Page", 
-            [i + 1 for i in range(total_pages)], 
-            index=st.session_state.page
-    )
-        if page_selection - 1 != st.session_state.page:
-            st.session_state.page = page_selection - 1
-            st.rerun()
+            page_numbers = list(range(max(0, st.session_state.page - 3), min(total_pages, st.session_state.page + 10)))
+            pages = st.columns(len(page_numbers))
+            for i, p in enumerate(page_numbers): 
+                with pages[i]:
+                    if st.button(f"**{p + 1}**", key=f"page_{p}"): 
+                        st.session_state.page = p
+                        st.rerun()
 
         with col3:
             if st.session_state.page < total_pages - 1:
