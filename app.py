@@ -8,7 +8,7 @@ import os
 
 # Streamlit page configuration
 st.set_page_config(layout="wide")
-st.title("A-PAG QC LOG")
+st.title("A-PAG QC LOG : Bihar")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload your CSV or Excel file", type=["csv", "xlsx"])
@@ -33,7 +33,6 @@ if "page" not in st.session_state:
 
 # Disapproval reasons
 disapproval_reasons = [
-    "Wrong Before Image/Poor Identification",
     "After Photo-Missing",
     "After Photo-Wrong/Blurry",
     "Incomplete Work/Work Not Started",
@@ -93,7 +92,7 @@ if uploaded_file:
         st.subheader("Review Summary 📊")
         st.write(f" **Correct:** {status_counts['Correct']}")
         st.write(f"**Incorrect:** {status_counts['Incorrect']}")
-        st.write(f" **Not Reviewed:** {status_counts['Not Reviewed']}")
+        st.write(f" **Not Reviewed(Wrong Before Image/Poor Identification):** {status_counts['Not Reviewed']}")
         st.write(f" **Status Yet to be Updated:** {status_counts['Status Yet to be Updated']}")
 
         # Live Percentage calculation
