@@ -8,7 +8,7 @@ import os
 
 # Streamlit page configuration
 st.set_page_config(layout="wide")
-st.title("A-PAG QC LOG : Bihar")
+st.title("A-PAG QC LOG")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload your CSV or Excel file", type=["csv", "xlsx"])
@@ -33,6 +33,7 @@ if "page" not in st.session_state:
 
 # Disapproval reasons
 disapproval_reasons = [
+    
     "After Photo-Missing",
     "After Photo-Wrong/Blurry",
     "Incomplete Work/Work Not Started",
@@ -78,27 +79,28 @@ if uploaded_file:
     # Live Review Summary
     status_counts = {
         "Status Yet to be Updated": 0,
-        "Not Reviewed": 0,
+        "Not Reviewed(Incorrect Before/Poor Identification)": 0,
         "Correct": 0,
         "Incorrect": 0
     }
 
     for pid in filtered_df["Project Id"]:
         current_status = st.session_state.feedback.get(str(pid), {}).get("Quality", "Status Yet to be Updated")
-        status_counts[current_status] += 1
+        status_counts[current_status] = status_counts.get(current_status, 0) + 1
+
 
     # Sidebar Summary
     with st.sidebar:
         st.subheader("Review Summary 📊")
         st.write(f" **Correct:** {status_counts['Correct']}")
         st.write(f"**Incorrect:** {status_counts['Incorrect']}")
-        st.write(f" **Not Reviewed(Wrong Before Image/Poor Identification):** {status_counts['Not Reviewed']}")
+        st.write(f" **Not Reviewed(Incorrect Before/Poor Identification):** {status_counts['Not Reviewed(Incorrect Before/Poor Identification)']}")
         st.write(f" **Status Yet to be Updated:** {status_counts['Status Yet to be Updated']}")
 
         # Live Percentage calculation
         total_correct = status_counts['Correct']
         total_incorrect = status_counts['Incorrect']
-        total_not_reviewed = status_counts['Not Reviewed']
+        total_not_reviewed = status_counts['Not Reviewed(Incorrect Before/Poor Identification)']
         total_status_not_updated = status_counts['Status Yet to be Updated']
         if total_correct + total_incorrect > 0:
             live_percentage = (total_correct * 100) / (total_correct + total_incorrect)
@@ -159,9 +161,10 @@ if uploaded_file:
 
             status = st.radio(
                 label=f"Status for Project ID {project_id}",
-                options=["Status Yet to be Updated", "Not Reviewed", "Correct", "Incorrect"],
+                options=["Status Yet to be Updated", "Not Reviewed(Incorrect Before/Poor Identification)", "Correct", "Incorrect"],
                 key=f"status_{project_id}",
-                index=["Status Yet to be Updated", "Not Reviewed", "Correct", "Incorrect"].index(saved_status)
+                index=["Status Yet to be Updated", "Not Reviewed(Incorrect Before/Poor Identification)", "Correct", "Incorrect"].index(saved_status) if saved_status in ["Status Yet to be Updated", "Not Reviewed(Incorrect Before/Poor Identification)", "Correct", "Incorrect"] else 0
+
             )
 
             saved_reason = st.session_state.feedback.get(project_id, {}).get("comment", "")
@@ -233,7 +236,8 @@ if uploaded_file:
 
                 fill_color = {
                     "Correct": "00FF00",
-                    "Incorrect": "FF0000"
+                    "Incorrect": "FF0000",
+                    "Not Reviewed(Incorrect Before/Poor Identification)":"FFFF00",
                 }.get(status, "FFFFFF")
 
                 for col in range(1, len(headers) + 2):
